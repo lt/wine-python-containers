@@ -1,0 +1,74 @@
+FROM debian:bookworm-slim AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wine \
+    wine64 \
+    wget \
+    ca-certificates \
+    msitools \
+    gnupg \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG PYTHON_VERSION=2.7.18
+
+ENV WINEARCH=win64
+ENV WINEPREFIX=/wineprefix
+ENV WINEDEBUG=-all
+ENV WINEDLLOVERRIDES="mscoree,mshtml=d"
+
+RUN mkdir /wineprefix && wine wineboot --init && wineserver -w
+
+# Public keys for Python release managers:
+# - Benjamin Peterson (2.7): 12EF3DC38047DA382D18A5B999CDEA9DA4135B38
+# - Barry Warsaw (3.0): A2C794A92F2D9AD419F37950DF9B9C731F2A99B1
+# - Georg Brandl (3.2): 26014C92F37240F9E347A22A7091B072D963F72B
+# - Larry Hastings (3.3, 3.4): 97FC712E4C024BBEA48A61ED3A5CA953F73C700D
+# - Martin von Löwis (Windows binaries): 6AF053F07D9DC8D2
+# - Steve Dower (Windows binaries): FC624643487034E5
+RUN gpg --batch --keyserver hkps://keyserver.ubuntu.com --recv-keys \
+    12EF3DC38047DA382D18A5B999CDEA9DA4135B38 \
+    A2C794A92F2D9AD419F37950DF9B9C731F2A99B1 \
+    26014C92F37240F9E347A22A7091B072D963F72B \
+    97FC712E4C024BBEA48A61ED3A5CA953F73C700D \
+    6AF053F07D9DC8D2 \
+    FC624643487034E5
+
+RUN wget -q "https://www.python.org/ftp/python/$PYTHON_VERSION/python-$PYTHON_VERSION.amd64.msi" -O python-installer.msi && \
+    wget -q "https://www.python.org/ftp/python/$PYTHON_VERSION/python-$PYTHON_VERSION.amd64.msi.asc" -O python-installer.msi.asc && \
+    gpg --batch --verify python-installer.msi.asc python-installer.msi && \
+    mkdir -p "$WINEPREFIX/drive_c/python" && \
+    msiextract -C "$WINEPREFIX/drive_c/python" python-installer.msi && \
+    rm python-installer.msi*
+
+# Replace physical files in system32 with symlinks to the internal Wine library.
+# This saves ~600MB of duplication.
+RUN cd "$WINEPREFIX/drive_c/windows/system32" && \
+    for f in *.dll; do \
+        if [ -f "/usr/lib/x86_64-linux-gnu/wine/x86_64-windows/$f" ]; then \
+            ln -sf "/usr/lib/x86_64-linux-gnu/wine/x86_64-windows/$f" "$f"; \
+        fi; \
+    done && \
+    wineserver -w
+
+FROM debian:bookworm-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV WINEPREFIX=/wineprefix
+ENV WINEARCH=win64
+ENV WINEDEBUG=-all
+ENV PYTHONIOENCODING=utf-8
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wine64 \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/* /usr/bin/apt* /usr/bin/dpkg* /usr/bin/wget
+
+RUN useradd -m wineuser && mkdir -p /wineprefix && chown wineuser:wineuser /wineprefix
+
+COPY --from=builder --chown=wineuser:wineuser /wineprefix /wineprefix
+
+USER wineuser
+WORKDIR /wineprefix
+
+ENTRYPOINT ["/usr/lib/wine/wine64", "/wineprefix/drive_c/python/python.exe"]

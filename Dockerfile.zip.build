@@ -1,0 +1,92 @@
+FROM debian:bookworm-slim AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wine \
+    wine64 \
+    wget \
+    ca-certificates \
+    gnupg \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG PYTHON_VERSION=3.12.8
+
+ENV WINEARCH=win64
+ENV WINEPREFIX=/wineprefix
+ENV WINEDEBUG=-all
+ENV WINEDLLOVERRIDES="mscoree,mshtml=d"
+
+RUN mkdir /wineprefix && wine wineboot --init && wineserver -w
+
+# Public keys for Python release managers and binary builders:
+# - Larry Hastings (3.5): 97FC712E4C024BBEA48A61ED3A5CA953F73C700D
+# - Ned Deily (3.6, 3.7): 0D96DF4D4110E5C43FBFB17F2D347EA6AA65421D
+# - Łukasz Langa (3.8, 3.9): E3FF285672FAD07303D88F626479256114103102
+# - Pablo Galindo Salgado (3.10, 3.11): A035C8C19219BA865442EB0C4C6E1EF060144985
+# - Thomas Wouters (3.12, 3.13): E3EDEB8B896857236C03D35AA821E680E5FA6305
+# - Steve Dower (Windows binaries): FC624643487034E5
+RUN gpg --batch --keyserver hkps://keyserver.ubuntu.com --recv-keys \
+    97FC712E4C024BBEA48A61ED3A5CA953F73C700D \
+    0D96DF4D4110E5C43FBFB17F2D347EA6AA65421D \
+    E3FF285672FAD07303D88F626479256114103102 \
+    A035C8C19219BA865442EB0C4C6E1EF060144985 \
+    E3EDEB8B896857236C03D35AA821E680E5FA6305 \
+    FC624643487034E5
+
+RUN for suffix in "embed-amd64.zip" "embeddable-amd64.zip"; do \
+        BASE_URL="https://www.python.org/ftp/python/$PYTHON_VERSION/python-$PYTHON_VERSION-$suffix"; \
+        if wget -q --spider "$BASE_URL"; then \
+            wget -q "$BASE_URL" -O python.zip && \
+            if wget -q "$BASE_URL.asc" -O python.zip.asc; then \
+                gpg --batch --verify python.zip.asc python.zip; \
+            elif wget -q "$BASE_URL.sig" -O python.zip.sig; then \
+                echo "WARNING: $PYTHON_VERSION uses Sigstore (.sig), skipping GPG verification"; \
+            else \
+                echo "Error: No GPG (.asc) or Sigstore (.sig) signature found for $PYTHON_VERSION"; \
+                exit 1; \
+            fi; \
+            extracted=1 && break; \
+        fi; \
+    done; \
+    if [ -z "$extracted" ]; then echo "Failed to find Python $PYTHON_VERSION"; exit 1; fi && \
+    mkdir -p "$WINEPREFIX/drive_c/python" && \
+    unzip python.zip -d "$WINEPREFIX/drive_c/python" && \
+    if [ ! -f "$WINEPREFIX/drive_c/python/python.exe" ]; then \
+        echo "Extraction failed: python.exe not found"; \
+        exit 1; \
+    fi && \
+    rm python.zip*
+
+
+# Replace physical files in system32 with symlinks to the internal Wine library.
+# This saves ~600MB of duplication.
+RUN cd "$WINEPREFIX/drive_c/windows/system32" && \
+    for f in *.dll; do \
+        if [ -f "/usr/lib/x86_64-linux-gnu/wine/x86_64-windows/$f" ]; then \
+            ln -sf "/usr/lib/x86_64-linux-gnu/wine/x86_64-windows/$f" "$f"; \
+        fi; \
+    done && \
+    wineserver -w
+
+FROM debian:bookworm-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV WINEPREFIX=/wineprefix
+ENV WINEARCH=win64
+ENV WINEDEBUG=-all
+ENV PYTHONIOENCODING=utf-8
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wine64 \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/* /usr/bin/apt* /usr/bin/dpkg* /usr/bin/wget
+
+RUN useradd -m wineuser && mkdir -p /wineprefix && chown wineuser:wineuser /wineprefix
+
+COPY --from=builder --chown=wineuser:wineuser /wineprefix /wineprefix
+
+USER wineuser
+WORKDIR /wineprefix
+
+ENTRYPOINT ["/usr/lib/wine/wine64", "/wineprefix/drive_c/python/python.exe"]
