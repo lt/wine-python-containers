@@ -10,8 +10,8 @@ DEV_IMAGE_NAME = wine-python-dev
 
 all: help
 
-images-all: $(addprefix image-,$(ALL_VERSIONS))
-dev-all: $(addprefix dev-,$(ALL_VERSIONS))
+all-image: $(addprefix image-,$(ALL_VERSIONS))
+all-dev: $(addprefix dev-,$(ALL_VERSIONS))
 
 help:
 	@echo "Usage: make [target] VERSION=<version>"
@@ -22,21 +22,18 @@ help:
 	@echo "  build-%    Compile the extension for version %"
 	@echo "  test-%     Run tests for version %"
 	@echo "  shell-%    Open an interactive shell in dev environment for version %"
-	@echo "  images-all Build all runtime images"
-	@echo "  dev-all    Build all development images"
+	@echo "  all-image Build all runtime images"
+	@echo "  all-dev   Build all development images"
 	@echo "  test-all   Run tests across all supported versions"
 	@echo "  clean      Remove docker images"
 
-# Determine installer type: msi for 2.x and 3.0-3.4, zip for 3.5+
-GET_TYPE = $(shell echo $(1) | awk -F. '{print ($$1 < 3 || ($$1 == 3 && $$2 < 5)) ? "msi" : "zip"}')
-
 # Build runtime image
 image-%:
-	docker build -f Dockerfile.$(call GET_TYPE,$*).build --target runtime --build-arg PYTHON_VERSION=$* -t $(IMAGE_NAME):$* .
+	docker build -f Dockerfile --target runtime --build-arg PYTHON_VERSION=$* -t $(IMAGE_NAME):$* .
 
 # Build development image
 dev-%:
-	docker build -f Dockerfile.$(call GET_TYPE,$*).build --target dev --build-arg PYTHON_VERSION=$* -t $(DEV_IMAGE_NAME):$* .
+	docker build -f Dockerfile --target dev --build-arg PYTHON_VERSION=$* -t $(DEV_IMAGE_NAME):$* .
 
 # Compile extension
 build-%: dev-%

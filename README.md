@@ -11,7 +11,7 @@ Minimal image for executing code:
 
 ```bash
 make image-3.12.8
-make images-all
+make all-image
 ```
 
 ### Development Images
@@ -19,7 +19,7 @@ Image with `mingw-w64` and Python headers for compiling extensions:
 
 ```bash
 make dev-3.12.8
-make dev-all
+make all-dev
 ```
 
 ## Usage
