@@ -4,30 +4,22 @@ This repository provides minimal, reproducible environments for running various 
 
 ## Building the Images
 
-One of two different Dockerfiles are used depending on the Python installer type (MSI or zip).
+A `Makefile` is provided to simplify building runtime and development images across all supported versions.
 
-### Python 2.7 and 3.0 - 3.4 (MSI)
-
-These versions use `Dockerfile.msi.build`.
+### Runtime Images
+Minimal image for executing code:
 
 ```bash
-# Build Python 2.7.18
-docker build -f Dockerfile.msi.build -t wine-python:2.7.18 .
-
-# Build Python 3.4.4
-docker build -f Dockerfile.msi.build --build-arg PYTHON_VERSION=3.4.4 -t wine-python:3.4.4 .
+make image-3.12.8
+make images-all
 ```
 
-### Python 3.5 - 3.14 (zip)
-
-These versions use `Dockerfile.zip.build`
+### Development Images
+Image with `mingw-w64` and Python headers for compiling extensions:
 
 ```bash
-# Build Python 3.13.13 (Default)
-docker build -f Dockerfile.zip.build -t wine-python:3.13.13 .
-
-# Build Python 3.8.10
-docker build -f Dockerfile.zip.build --build-arg PYTHON_VERSION=3.8.10 -t wine-python:3.8.10 .
+make dev-3.12.8
+make dev-all
 ```
 
 ## Usage
@@ -37,6 +29,22 @@ Run a simple command to verify the Python version:
 
 ```bash
 docker run --rm wine-python:3.12.8 -c "import sys; print(sys.version)"
+```
+
+### Extension Development
+An example extension is provided in the `hello` directory.
+
+Compile and test the C extension inside the dev container:
+
+```bash
+make test-3.12.8
+```
+
+### Interactive Shell
+Open a shell in the development environment:
+
+```bash
+make shell-3.12.8
 ```
 
 ## Environment

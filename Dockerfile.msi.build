@@ -1,6 +1,13 @@
+# MSI-based Python versions (2.7, 3.0-3.4)
 FROM debian:bookworm-slim AS builder
 
+ARG PYTHON_VERSION=2.7.18
+
 ENV DEBIAN_FRONTEND=noninteractive
+ENV WINEARCH=win64
+ENV WINEPREFIX=/wineprefix
+ENV WINEDEBUG=-all
+ENV WINEDLLOVERRIDES="mscoree,mshtml=d"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wine \
@@ -10,13 +17,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     msitools \
     gnupg \
     && rm -rf /var/lib/apt/lists/*
-
-ARG PYTHON_VERSION=2.7.18
-
-ENV WINEARCH=win64
-ENV WINEPREFIX=/wineprefix
-ENV WINEDEBUG=-all
-ENV WINEDLLOVERRIDES="mscoree,mshtml=d"
 
 RUN mkdir /wineprefix && wine wineboot --init && wineserver -w
 
@@ -52,7 +52,9 @@ RUN cd "$WINEPREFIX/drive_c/windows/system32" && \
     done && \
     wineserver -w
 
-FROM debian:bookworm-slim
+# -----------------------------------------------------------------------------
+
+FROM debian:bookworm-slim AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV WINEPREFIX=/wineprefix
@@ -62,7 +64,7 @@ ENV PYTHONIOENCODING=utf-8
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wine64 \
-    && rm -rf /var/lib/apt/lists/* /var/cache/apt/* /usr/bin/apt* /usr/bin/dpkg* /usr/bin/wget
+    && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m wineuser && mkdir -p /wineprefix && chown wineuser:wineuser /wineprefix
 
@@ -72,3 +74,37 @@ USER wineuser
 WORKDIR /wineprefix
 
 ENTRYPOINT ["/usr/lib/wine/wine64", "/wineprefix/drive_c/python/python.exe"]
+
+# -----------------------------------------------------------------------------
+
+FROM runtime AS dev
+
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    mingw-w64 \
+    mingw-w64-tools \
+    binutils-mingw-w64-x86-64 \
+    gcc-mingw-w64-x86-64 \
+    g++-mingw-w64-x86-64 \
+    make \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG PYTHON_VERSION
+ENV CC=x86_64-w64-mingw32-gcc
+ENV CXX=x86_64-w64-mingw32-g++
+
+RUN case "$PYTHON_VERSION" in \
+        2.*|3.[012]*) MSVC_DLL="msvcr90.dll"  ;; \
+        *)            MSVC_DLL="msvcr100.dll" ;; \
+    esac && \
+    cd "$WINEPREFIX/drive_c/windows/system32" && \
+    gendef "$MSVC_DLL" && \
+    x86_64-w64-mingw32-dlltool -d "${MSVC_DLL%.dll}.def" -l "/usr/x86_64-w64-mingw32/lib/lib${MSVC_DLL%.dll}.a" -D "$MSVC_DLL" && \
+    PYTHON_DLL_PATH=$(find "$WINEPREFIX/drive_c/windows/system32" "$WINEPREFIX/drive_c/python" -name "python*.dll" | grep -vE "/python3\.dll$" | head -n 1) && \
+
+    PYTHON_DLL=$(basename "$PYTHON_DLL_PATH") && \
+    cd $(dirname "$PYTHON_DLL_PATH") && \
+    gendef "$PYTHON_DLL" && \
+    x86_64-w64-mingw32-dlltool -d "${PYTHON_DLL%.dll}.def" -l "/usr/x86_64-w64-mingw32/lib/libpython.a" -D "$PYTHON_DLL"
+
+USER wineuser

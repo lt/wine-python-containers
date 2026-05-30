@@ -1,23 +1,17 @@
+# ZIP-based Python versions (3.5-3.14)
 FROM debian:bookworm-slim AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    wine \
-    wine64 \
-    wget \
-    ca-certificates \
-    gnupg \
-    unzip \
-    && rm -rf /var/lib/apt/lists/*
-
-ARG PYTHON_VERSION=3.12.8
-
 ENV WINEARCH=win64
 ENV WINEPREFIX=/wineprefix
 ENV WINEDEBUG=-all
 ENV WINEDLLOVERRIDES="mscoree,mshtml=d"
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wine wine64 wget ca-certificates gnupg unzip msitools \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG PYTHON_VERSION=3.12.8
 RUN mkdir /wineprefix && wine wineboot --init && wineserver -w
 
 # Public keys for Python release managers and binary builders:
@@ -39,26 +33,24 @@ RUN for suffix in "embed-amd64.zip" "embeddable-amd64.zip"; do \
         BASE_URL="https://www.python.org/ftp/python/$PYTHON_VERSION/python-$PYTHON_VERSION-$suffix"; \
         if wget -q --spider "$BASE_URL"; then \
             wget -q "$BASE_URL" -O python.zip && \
-            if wget -q "$BASE_URL.asc" -O python.zip.asc; then \
-                gpg --batch --verify python.zip.asc python.zip; \
-            elif wget -q "$BASE_URL.sig" -O python.zip.sig; then \
-                echo "WARNING: $PYTHON_VERSION uses Sigstore (.sig), skipping GPG verification"; \
-            else \
-                echo "Error: No GPG (.asc) or Sigstore (.sig) signature found for $PYTHON_VERSION"; \
-                exit 1; \
-            fi; \
+            wget -q "$BASE_URL.asc" -O python.zip.asc && \
+            gpg --batch --verify python.zip.asc python.zip && \
             extracted=1 && break; \
         fi; \
     done; \
     if [ -z "$extracted" ]; then echo "Failed to find Python $PYTHON_VERSION"; exit 1; fi && \
     mkdir -p "$WINEPREFIX/drive_c/python" && \
     unzip python.zip -d "$WINEPREFIX/drive_c/python" && \
-    if [ ! -f "$WINEPREFIX/drive_c/python/python.exe" ]; then \
-        echo "Extraction failed: python.exe not found"; \
-        exit 1; \
-    fi && \
     rm python.zip*
 
+# Development MSI
+RUN BASE_URL="https://www.python.org/ftp/python/$PYTHON_VERSION/amd64/dev.msi"; \
+    wget -q "$BASE_URL" -O dev.msi && \
+    if wget -q "$BASE_URL.asc" -O dev.msi.asc; then \
+        gpg --batch --verify dev.msi.asc dev.msi; \
+    fi && \
+    msiextract -C "$WINEPREFIX/drive_c/python" dev.msi && \
+    rm dev.msi*
 
 # Replace physical files in system32 with symlinks to the internal Wine library.
 # This saves ~600MB of duplication.
@@ -70,7 +62,9 @@ RUN cd "$WINEPREFIX/drive_c/windows/system32" && \
     done && \
     wineserver -w
 
-FROM debian:bookworm-slim
+# -----------------------------------------------------------------------------
+
+FROM debian:bookworm-slim AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV WINEPREFIX=/wineprefix
@@ -80,7 +74,7 @@ ENV PYTHONIOENCODING=utf-8
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wine64 \
-    && rm -rf /var/lib/apt/lists/* /var/cache/apt/* /usr/bin/apt* /usr/bin/dpkg* /usr/bin/wget
+    && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m wineuser && mkdir -p /wineprefix && chown wineuser:wineuser /wineprefix
 
@@ -90,3 +84,27 @@ USER wineuser
 WORKDIR /wineprefix
 
 ENTRYPOINT ["/usr/lib/wine/wine64", "/wineprefix/drive_c/python/python.exe"]
+
+# -----------------------------------------------------------------------------
+
+FROM runtime AS dev
+
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    mingw-w64 mingw-w64-tools binutils-mingw-w64-x86-64 \
+    gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 make \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV CC=x86_64-w64-mingw32-gcc
+ENV CXX=x86_64-w64-mingw32-g++
+
+RUN cd "$WINEPREFIX/drive_c/windows/system32" && \
+    gendef "vcruntime140.dll" && \
+    x86_64-w64-mingw32-dlltool -d "vcruntime140.def" -l "/usr/x86_64-w64-mingw32/lib/libvcruntime140.a" -D "vcruntime140.dll" && \
+    PYTHON_DLL_PATH=$(find "$WINEPREFIX/drive_c/python" -name "python3*.dll" | grep -vE "/python3\.dll$" | head -n 1) && \
+    PYTHON_DLL=$(basename "$PYTHON_DLL_PATH") && \
+    cd $(dirname "$PYTHON_DLL_PATH") && \
+    gendef "$PYTHON_DLL" && \
+    x86_64-w64-mingw32-dlltool -d "${PYTHON_DLL%.dll}.def" -l "/usr/x86_64-w64-mingw32/lib/libpython.a" -D "$PYTHON_DLL"
+
+USER wineuser
