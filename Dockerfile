@@ -10,8 +10,13 @@ ENV WINEPREFIX=/wineprefix
 ENV WINEDEBUG=-all
 ENV PYTHONIOENCODING=utf-8
 
+# Debian ships Wine's PE builtins with full DWARF debug info. Stripping it saves
+# ~480MB. Wine recognises builtins by a marker in the DOS stub, which strip keeps.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wine64 \
+    binutils \
+    && strip --strip-debug /usr/lib/x86_64-linux-gnu/wine/x86_64-windows/* \
+    && apt-get purge -y --auto-remove binutils \
     && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m wineuser
