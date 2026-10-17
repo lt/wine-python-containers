@@ -1,6 +1,6 @@
 ARG PYTHON_VERSION=3.15.0
 
-# Shared by every stage, so the builder and the images run the same Wine build.
+# Every other stage starts from this one, so they all use the same Wine package.
 FROM debian:trixie-slim AS base
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -10,8 +10,9 @@ ENV WINEPREFIX=/wineprefix
 ENV WINEDEBUG=-all
 ENV PYTHONIOENCODING=utf-8
 
-# Debian ships Wine's PE builtins with full DWARF debug info. Stripping it saves
-# ~480MB. Wine recognises builtins by a marker in the DOS stub, which strip keeps.
+# Debian ships Wine's Windows DLLs and EXEs with full debug info. Stripping it
+# saves about 480MB. Wine still recognises the files, because strip keeps the
+# marker Wine looks for.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wine64 \
     binutils \
@@ -41,13 +42,15 @@ RUN install -d -o wineuser -g wineuser "$WINEPREFIX"
 USER wineuser
 WORKDIR /home/wineuser
 
-# The null graphics driver stops Wine probing for X11 and Wayland on every start.
+# The null graphics driver stops Wine looking for an X11 or Wayland display each
+# time it starts.
 RUN wine64 wineboot --init && \
     wine64 reg add 'HKCU\Software\Wine\Drivers' /v Graphics /d null /f && \
     wineserver -w
 
-# wineboot copies Wine's PE builtins into the prefix. Replace each identical copy
-# with a symlink to the original. This is cached globally for all Python versions.
+# wineboot copies Wine's DLLs and EXEs into the prefix. Replace each identical
+# copy with a symlink to Wine's file. This step runs before the Python version is
+# set, so all versions share it.
 RUN BUILTINS=/usr/lib/x86_64-linux-gnu/wine/x86_64-windows && \
     find "$WINEPREFIX/drive_c" -type f | while read -r f; do \
         b="$BUILTINS/${f##*/}"; \
@@ -63,8 +66,8 @@ RUN gpg --batch --keyserver hkps://keyserver.ubuntu.com --recv-keys \
 
 ARG PYTHON_VERSION
 
-# Every version installs from MSIs. Pre-3.5 releases ship a single MSI. Later
-# releases ship a bundle installer with the component MSIs embedded.
+# Every version is installed from MSI files. Releases before 3.5 have one MSI.
+# Later releases have a full installer (.exe) with the component MSIs inside.
 RUN set -eu; \
     MAJOR=${PYTHON_VERSION%%.*}; \
     MINOR=${PYTHON_VERSION#*.}; MINOR=${MINOR%%.*}; \
@@ -79,7 +82,7 @@ RUN set -eu; \
         wget -q "$URL/$INSTALLER.asc"; \
         gpg --batch --verify "$INSTALLER.asc" "$INSTALLER"; \
     else \
-        # 3.14+: No PGP signatures (PEP 761). Hugo van Kemenade, release
+        # 3.14+: no PGP signatures (PEP 761). Hugo van Kemenade, release
         # manager for 3.14 and 3.15, signs with Sigstore.
         wget -q "$URL/$INSTALLER.sigstore"; \
         cosign verify-blob --new-bundle-format --bundle "$INSTALLER.sigstore" \
@@ -88,7 +91,8 @@ RUN set -eu; \
             "$INSTALLER"; \
     fi; \
     if [ "${INSTALLER##*.}" = exe ]; then \
-        # The bundle's manifest, extracted as "0", maps each MSI to its payload file
+        # cabextract names the installer's manifest "0". The manifest gives
+        # the payload file for each MSI.
         cabextract -q -d bundle "$INSTALLER"; \
         MSIS=""; \
         for c in core exe lib dev; do \
@@ -102,17 +106,16 @@ RUN set -eu; \
     mkdir -p "$DEST"; \
     for m in $MSIS; do msiextract -C "$DEST" "$m" > /dev/null; done; \
     if [ "${INSTALLER##*.}" = msi ]; then \
-        # The single MSI installs every feature. Remove those that the core,
-        # exe, lib and dev MSIs leave out.
+        # The single MSI installs every feature. Delete the ones that later
+        # versions don't install.
         (cd "$DEST" && rm -rf Doc Tools tcl Lib/test Lib/idlelib Lib/lib-tk Lib/tkinter Lib/turtledemo \
             DLLs/_tkinter.pyd DLLs/tcl*.dll DLLs/tk*.dll DLLs/_test*.pyd DLLs/_ctypes_test.pyd); \
     fi; \
     rm -rf bundle "$INSTALLER" "$INSTALLER".*
 
-# Containers start with an empty bytecode cache, so every run would recompile
-# the stdlib modules it imports. Compile them once here. Test directories are
-# skipped: up to 3.11, lib2to3's test data holds files with deliberate syntax
-# errors.
+# Compile the standard library to bytecode now. Otherwise each new container
+# compiles every module it imports. Skip test directories: up to 3.11, lib2to3's
+# test data has files with deliberate syntax errors.
 RUN wine64 "$WINEPREFIX/drive_c/python/python.exe" -m compileall -q -x '[\\/]tests?[\\/]' 'C:\python\Lib' > /dev/null
 
 # -----------------------------------------------------------------------------
@@ -128,11 +131,13 @@ ENTRYPOINT ["/usr/lib/wine/wine64", "/wineprefix/drive_c/python/python.exe"]
 
 # -----------------------------------------------------------------------------
 
-# Toolchain layers come before the prefix, so all Python versions share them.
+# Install the compilers before copying in the prefix, so all Python versions
+# share this layer.
 FROM base AS dev-tools
 
-# Only the win32 thread model, the default. The metapackages also pull in the
-# posix variant, a second ~270MB copy of the compilers.
+# Install only the win32 thread model, which is the default. The
+# gcc-mingw-w64-x86-64 package also installs the posix model, a second copy of
+# the compilers (about 270MB).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     mingw-w64-tools \
     gcc-mingw-w64-x86-64-win32 \
@@ -151,8 +156,8 @@ COPY --from=builder --chown=wineuser:wineuser /wineprefix /wineprefix
 
 ARG PYTHON_VERSION
 
-# Generate an import library so extensions can link with -lpython. The exact
-# DLL name matters: 3.15 also ships python3t.dll, a free-threaded ABI shim.
+# Make an import library so extensions can link with -lpython. Match the DLL's
+# full name, because 3.15 also ships python3t.dll for free-threaded builds.
 RUN MAJOR=${PYTHON_VERSION%%.*} && \
     MINOR=${PYTHON_VERSION#*.} && MINOR=${MINOR%%.*} && \
     PYTHON_DLL="python$MAJOR$MINOR.dll" && \
