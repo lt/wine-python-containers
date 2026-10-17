@@ -17,15 +17,15 @@ help:
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Targets:"
-	@echo "  image-%    Build runtime image for version % (e.g. make image-3.15.0)"
-	@echo "  dev-%      Build development image for version % (e.g. make dev-3.15.0)"
-	@echo "  build-%    Compile the extension for version %"
+	@echo "  image-%    Build the runtime image for version % (for example, make image-3.15.0)"
+	@echo "  dev-%      Build the dev image for version % (for example, make dev-3.15.0)"
+	@echo "  build-%    Build the example extension for version %"
 	@echo "  test-%     Run tests for version %"
-	@echo "  shell-%    Open an interactive shell in dev environment for version %"
+	@echo "  shell-%    Open a shell in the dev image for version %"
 	@echo "  all-image  Build all runtime images"
-	@echo "  all-dev    Build all development images"
+	@echo "  all-dev    Build all dev images"
 	@echo "  test-all   Run tests across all supported versions (parallel with -j)"
-	@echo "  clean      Remove docker images"
+	@echo "  clean      Remove the built images"
 
 # Build runtime image
 image-%:
@@ -48,7 +48,7 @@ test-%: dev-%
 shell-%: dev-%
 	docker run -it --rm --entrypoint /bin/bash -v $(CURDIR)/hello:/build -w /build $(DEV_IMAGE_NAME):$*
 
-# Comprehensive test
+# Test every version
 test-all: $(addprefix test-,$(ALL_VERSIONS))
 
 clean:
