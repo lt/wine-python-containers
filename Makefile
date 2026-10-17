@@ -37,15 +37,15 @@ dev-%:
 
 # Compile extension
 build-%: dev-%
-	docker run --rm --entrypoint /bin/bash -v $(PWD)/hello:/build -w /build $(DEV_IMAGE_NAME):$* -c "make clean hello.pyd"
+	docker run --rm --entrypoint /bin/bash -v $(CURDIR)/hello:/build -w /build $(DEV_IMAGE_NAME):$* -c "make clean hello.pyd"
 
 # Run tests
 test-%: dev-%
-	docker run --rm --entrypoint /bin/bash -v $(PWD)/hello:/build -w /build $(DEV_IMAGE_NAME):$* -c "make clean all test"
+	docker run --rm --entrypoint /bin/bash -v $(CURDIR)/hello:/build -w /build $(DEV_IMAGE_NAME):$* -c "make clean all test"
 
 # Interactive shell
 shell-%: dev-%
-	docker run -it --rm --entrypoint /bin/bash -v $(PWD)/hello:/build -w /build $(DEV_IMAGE_NAME):$*
+	docker run -it --rm --entrypoint /bin/bash -v $(CURDIR)/hello:/build -w /build $(DEV_IMAGE_NAME):$*
 
 # Comprehensive test
 test-all:
