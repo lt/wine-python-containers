@@ -2,6 +2,8 @@
 
 This repository provides minimal, reproducible environments for running various Windows Python versions on Linux using Wine 64-bit.
 
+Supported versions are listed in the `Makefile`, from 2.7.18 to 3.15.0. Each is the last release of its series with Windows binaries, or the latest one if the series is still maintained.
+
 ## Building the Images
 
 A `Makefile` is provided to simplify building runtime and development images across all supported versions.
@@ -10,7 +12,7 @@ A `Makefile` is provided to simplify building runtime and development images acr
 Minimal image for executing code:
 
 ```bash
-make image-3.12.8
+make image-3.15.0
 make all-image
 ```
 
@@ -18,7 +20,7 @@ make all-image
 Image with `mingw-w64` and Python headers for compiling extensions:
 
 ```bash
-make dev-3.12.8
+make dev-3.15.0
 make all-dev
 ```
 
@@ -28,7 +30,7 @@ make all-dev
 Run a simple command to verify the Python version:
 
 ```bash
-docker run --rm wine-python:3.12.8 -c "import sys; print(sys.version)"
+docker run --rm wine-python:3.15.0 -c "import sys; print(sys.version)"
 ```
 
 ### Extension Development
@@ -37,14 +39,14 @@ An example extension is provided in the `hello` directory.
 Compile and test the C extension inside the dev container:
 
 ```bash
-make test-3.12.8
+make test-3.15.0
 ```
 
 ### Interactive Shell
 Open a shell in the development environment:
 
 ```bash
-make shell-3.12.8
+make shell-3.15.0
 ```
 
 ## Environment

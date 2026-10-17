@@ -50,7 +50,7 @@ RUN gpg --batch --keyserver hkps://keyserver.ubuntu.com --recv-keys \
     6AF053F07D9DC8D2 \
     FC624643487034E5
 
-ARG PYTHON_VERSION=3.12.8
+ARG PYTHON_VERSION=3.15.0
 
 RUN mkdir -p "$WINEPREFIX/drive_c/python" && \
     MAJOR=$(echo "$PYTHON_VERSION" | cut -d. -f1) && \
