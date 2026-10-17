@@ -6,7 +6,7 @@ ALL_VERSIONS = $(MSI_VERSIONS) $(BUNDLE_VERSIONS)
 IMAGE_NAME = wine-python
 DEV_IMAGE_NAME = wine-python-dev
 
-.PHONY: all help test-all clean $(ALL_VERSIONS)
+.PHONY: all help all-image all-dev test-all clean
 
 all: help
 
