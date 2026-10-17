@@ -132,9 +132,7 @@ ENTRYPOINT ["/usr/lib/wine/wine64", "/wineprefix/drive_c/python/python.exe"]
 FROM base AS dev-tools
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    mingw-w64 \
     mingw-w64-tools \
-    binutils-mingw-w64-x86-64 \
     gcc-mingw-w64-x86-64 \
     g++-mingw-w64-x86-64 \
     make \
