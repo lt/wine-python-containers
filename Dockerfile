@@ -131,10 +131,12 @@ ENTRYPOINT ["/usr/lib/wine/wine64", "/wineprefix/drive_c/python/python.exe"]
 # Toolchain layers come before the prefix, so all Python versions share them.
 FROM base AS dev-tools
 
+# Only the win32 thread model, the default. The metapackages also pull in the
+# posix variant, a second ~270MB copy of the compilers.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     mingw-w64-tools \
-    gcc-mingw-w64-x86-64 \
-    g++-mingw-w64-x86-64 \
+    gcc-mingw-w64-x86-64-win32 \
+    g++-mingw-w64-x86-64-win32 \
     make \
     && rm -rf /var/lib/apt/lists/*
 
