@@ -44,15 +44,13 @@ RUN wine64 wineboot --init && \
     wine64 reg add 'HKCU\Software\Wine\Drivers' /v Graphics /d null /f && \
     wineserver -w
 
-# Replace physical files in system32 with symlinks to the internal Wine library.
-# This saves ~600MB and is cached globally for all Python versions.
-RUN cd "$WINEPREFIX/drive_c/windows/system32" && \
-    for f in *.dll; do \
-        if [ -f "/usr/lib/x86_64-linux-gnu/wine/x86_64-windows/$f" ]; then \
-            ln -sf "/usr/lib/x86_64-linux-gnu/wine/x86_64-windows/$f" "$f"; \
-        fi; \
-    done && \
-    wineserver -w
+# wineboot copies Wine's PE builtins into the prefix. Replace each identical copy
+# with a symlink to the original. This is cached globally for all Python versions.
+RUN BUILTINS=/usr/lib/x86_64-linux-gnu/wine/x86_64-windows && \
+    find "$WINEPREFIX/drive_c" -type f | while read -r f; do \
+        b="$BUILTINS/${f##*/}"; \
+        if [ -f "$b" ] && cmp -s "$f" "$b"; then ln -sf "$b" "$f"; fi; \
+    done
 
 # Windows release signing keys:
 # - Martin v. Löwis (3.0-3.4): CBC547978A3964D14B9AB36A6AF053F07D9DC8D2
