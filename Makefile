@@ -1,7 +1,7 @@
-# Support Python versions
+# Supported Python versions, grouped by installer type
 MSI_VERSIONS = 2.7.18 3.0.1 3.1.4 3.2.5 3.3.5 3.4.4
-ZIP_VERSIONS = 3.5.4 3.6.8 3.7.9 3.8.10 3.9.13 3.10.11 3.11.9 3.12.10 3.13.16 3.14.8 3.15.0
-ALL_VERSIONS = $(MSI_VERSIONS) $(ZIP_VERSIONS)
+BUNDLE_VERSIONS = 3.5.4 3.6.8 3.7.9 3.8.10 3.9.13 3.10.11 3.11.9 3.12.10 3.13.16 3.14.8 3.15.0
+ALL_VERSIONS = $(MSI_VERSIONS) $(BUNDLE_VERSIONS)
 
 IMAGE_NAME = wine-python
 DEV_IMAGE_NAME = wine-python-dev

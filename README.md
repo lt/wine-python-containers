@@ -49,6 +49,15 @@ Open a shell in the development environment:
 make shell-3.15.0
 ```
 
+## Verification
+
+Every version installs from python.org's MSIs with `msiextract`. Releases before 3.5 ship a single MSI. From 3.5 on, the build downloads the bundle installer and extracts the core, exe, lib and dev MSIs embedded in it.
+
+The installer is verified before extraction:
+
+- 2.7 to 3.13: PGP signature, checked against the Windows release signing keys.
+- 3.14 and later: Sigstore bundle. PEP 761 dropped PGP signatures from 3.14 on.
+
 ## Environment
 
 - WINEPREFIX set to `/wineprefix`.

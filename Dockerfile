@@ -29,6 +29,8 @@ ENV WINEDLLOVERRIDES="mscoree,mshtml=d"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    cabextract \
+    cosign \
     gnupg \
     msitools \
     wget \
@@ -61,34 +63,45 @@ RUN gpg --batch --keyserver hkps://keyserver.ubuntu.com --recv-keys \
 
 ARG PYTHON_VERSION
 
-RUN mkdir -p "$WINEPREFIX/drive_c/python" && \
-    MAJOR=$(echo "$PYTHON_VERSION" | cut -d. -f1) && \
-    MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f2) && \
-    if [ "$MAJOR" -eq 2 ] || { [ "$MAJOR" -eq 3 ] && [ "$MINOR" -lt 5 ]; }; then \
-        # Pre-3.5: Monolithic MSI
-        URL="https://www.python.org/ftp/python/$PYTHON_VERSION/python-$PYTHON_VERSION.amd64.msi" && \
-        wget -q "$URL" -O installer.msi && \
-        wget -q "$URL.asc" -O installer.msi.asc && \
-        gpg --batch --verify installer.msi.asc installer.msi && \
-        msiextract -C "$WINEPREFIX/drive_c/python" installer.msi && \
-        rm installer.msi*; \
+# Every version installs from MSIs. Pre-3.5 releases ship a single MSI. Later
+# releases ship a bundle installer with the component MSIs embedded.
+RUN set -eu; \
+    MAJOR=${PYTHON_VERSION%%.*}; \
+    MINOR=${PYTHON_VERSION#*.}; MINOR=${MINOR%%.*}; \
+    URL="https://www.python.org/ftp/python/$PYTHON_VERSION"; \
+    if [ "$MAJOR" -eq 2 ] || [ "$MINOR" -lt 5 ]; then \
+        INSTALLER="python-$PYTHON_VERSION.amd64.msi"; \
     else \
-        # 3.5+: Component MSIs
+        INSTALLER="python-$PYTHON_VERSION-amd64.exe"; \
+    fi; \
+    wget -q "$URL/$INSTALLER"; \
+    if [ "$MAJOR" -eq 2 ] || [ "$MINOR" -lt 14 ]; then \
+        wget -q "$URL/$INSTALLER.asc"; \
+        gpg --batch --verify "$INSTALLER.asc" "$INSTALLER"; \
+    else \
+        # 3.14+: No PGP signatures (PEP 761). Hugo van Kemenade, release
+        # manager for 3.14 and 3.15, signs with Sigstore.
+        wget -q "$URL/$INSTALLER.sigstore"; \
+        cosign verify-blob --new-bundle-format --bundle "$INSTALLER.sigstore" \
+            --certificate-identity hugo@python.org \
+            --certificate-oidc-issuer https://github.com/login/oauth \
+            "$INSTALLER"; \
+    fi; \
+    if [ "${INSTALLER##*.}" = exe ]; then \
+        # The bundle's manifest, extracted as "0", maps each MSI to its payload file
+        cabextract -q -d bundle "$INSTALLER"; \
+        MSIS=""; \
         for c in core exe lib dev; do \
-            URL="https://www.python.org/ftp/python/$PYTHON_VERSION/amd64/${c}.msi" && \
-            wget -q "$URL" -O "${c}.msi" && \
-            if [ "$MAJOR" -eq 3 ] && [ "$MINOR" -lt 14 ]; then \
-                wget -q "$URL.asc" -O "${c}.msi.asc" && \
-                gpg --batch --verify "${c}.msi.asc" "${c}.msi" && \
-                rm "${c}.msi.asc"; \
-            else \
-                # TODO: Verify component MSIs for 3.14+ using Sigstore (PEP 761)
-                : ; \
-            fi && \
-            msiextract -C "$WINEPREFIX/drive_c/python" "${c}.msi" && \
-            rm "${c}.msi"; \
+            SRC=$(grep -o '<Payload [^>]*>' bundle/0 | grep "FilePath=\"$c.msi\"" | head -n 1 | sed 's/.*SourcePath="\([^"]*\)".*/\1/'); \
+            MSIS="$MSIS bundle/$SRC"; \
         done; \
-    fi
+    else \
+        MSIS="$INSTALLER"; \
+    fi; \
+    DEST="$WINEPREFIX/drive_c/python"; \
+    mkdir -p "$DEST"; \
+    for m in $MSIS; do msiextract -C "$DEST" "$m" > /dev/null; done; \
+    rm -rf bundle "$INSTALLER" "$INSTALLER".*
 
 # -----------------------------------------------------------------------------
 
