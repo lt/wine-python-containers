@@ -39,7 +39,7 @@ hello_load(PyObject* self, PyObject* args)
 }
 
 static PyMethodDef HelloMethods[] = {
-    {"load", hello_load, METH_VARARGS, "Hello there."},
+    {"load", hello_load, METH_NOARGS, "Hello there."},
     {NULL, NULL, 0, NULL}
 };
 
