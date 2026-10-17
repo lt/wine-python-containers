@@ -65,3 +65,4 @@ The installer is verified before extraction:
 - WINEDLLOVERRIDES disables `mscoree` and `mshtml` to prevent hangs during the build.
 - Wine's graphics driver is set to `null`, as the images are headless.
 - `/usr/lib/wine` is on `PATH`, so `wine64` and `wineserver` work in a shell.
+- The standard library is precompiled to bytecode, so a fresh container doesn't recompile the modules it imports.

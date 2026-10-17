@@ -109,6 +109,12 @@ RUN set -eu; \
     fi; \
     rm -rf bundle "$INSTALLER" "$INSTALLER".*
 
+# Containers start with an empty bytecode cache, so every run would recompile
+# the stdlib modules it imports. Compile them once here. Test directories are
+# skipped: up to 3.11, lib2to3's test data holds files with deliberate syntax
+# errors.
+RUN wine64 "$WINEPREFIX/drive_c/python/python.exe" -m compileall -q -x '[\\/]tests?[\\/]' 'C:\python\Lib' > /dev/null
+
 # -----------------------------------------------------------------------------
 
 FROM base AS runtime
