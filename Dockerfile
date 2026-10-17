@@ -121,17 +121,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV CC=x86_64-w64-mingw32-gcc
 ENV CXX=x86_64-w64-mingw32-g++
 
-ARG PYTHON_VERSION
-
-RUN case "$PYTHON_VERSION" in \
-        2.*|3.[012]*) MSVC_DLL="msvcr90.dll"  ;; \
-        3.3*|3.4*)    MSVC_DLL="msvcr100.dll" ;; \
-        *)            MSVC_DLL="vcruntime140.dll" ;; \
-    esac && \
-    cd "$WINEPREFIX/drive_c/windows/system32" && \
-    gendef "$MSVC_DLL" && \
-    x86_64-w64-mingw32-dlltool -d "${MSVC_DLL%.dll}.def" -l "/usr/x86_64-w64-mingw32/lib/lib${MSVC_DLL%.dll}.a" -D "$MSVC_DLL" && \
-    PYTHON_DLL_PATH=$(find "$WINEPREFIX/drive_c/windows/system32" "$WINEPREFIX/drive_c/python" -name "python*.dll" | grep -vE "/python3\.dll$" | head -n 1) && \
+RUN PYTHON_DLL_PATH=$(find "$WINEPREFIX/drive_c/windows/system32" "$WINEPREFIX/drive_c/python" -name "python*.dll" | grep -vE "/python3\.dll$" | head -n 1) && \
     PYTHON_DLL=$(basename "$PYTHON_DLL_PATH") && \
     cd $(dirname "$PYTHON_DLL_PATH") && \
     gendef "$PYTHON_DLL" && \
