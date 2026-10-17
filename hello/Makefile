@@ -1,4 +1,4 @@
-# This Makefile is intended to be run inside the wine-python-dev container.
+# Run this Makefile inside the wine-python-dev image.
 
 PYTHON_DIR = /wineprefix/drive_c/python
 CC = x86_64-w64-mingw32-gcc
