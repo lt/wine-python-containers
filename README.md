@@ -54,3 +54,4 @@ make shell-3.15.0
 - WINEPREFIX set to `/wineprefix`.
 - WINEDEBUG set to `-all` to keep output clean.
 - WINEDLLOVERRIDES disables `mscoree` and `mshtml` to prevent hangs during the build.
+- Wine's graphics driver is set to `null`, as the images are headless.

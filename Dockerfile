@@ -1,6 +1,6 @@
 ARG PYTHON_VERSION=3.15.0
 
-FROM debian:bookworm-slim AS builder
+FROM debian:trixie-slim AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV WINEARCH=win64
@@ -17,7 +17,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gnupg \
     && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir /wineprefix && wine wineboot --init && wineserver -w
+# The null graphics driver stops Wine probing for X11 and Wayland on every start.
+RUN mkdir /wineprefix && \
+    wine wineboot --init && \
+    wine reg add 'HKCU\Software\Wine\Drivers' /v Graphics /d null /f && \
+    wineserver -w
 
 # Replace physical files in system32 with symlinks to the internal Wine library.
 # This saves ~600MB and is cached globally for all Python versions.
@@ -69,7 +73,7 @@ RUN mkdir -p "$WINEPREFIX/drive_c/python" && \
 
 # -----------------------------------------------------------------------------
 
-FROM debian:bookworm-slim AS runtime
+FROM debian:trixie-slim AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV WINEPREFIX=/wineprefix
