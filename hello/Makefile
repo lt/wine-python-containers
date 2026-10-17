@@ -2,8 +2,8 @@
 
 PYTHON_DIR = /wineprefix/drive_c/python
 CC = x86_64-w64-mingw32-gcc
-CFLAGS = -I$(PYTHON_DIR)/include -shared -O2 -Wall
-LDFLAGS = -L$(PYTHON_DIR) -L$(PYTHON_DIR)/libs -lpython -static-libgcc
+CFLAGS = -I$(PYTHON_DIR)/include -O2 -Wall
+LDFLAGS = -shared -lpython -static-libgcc
 
 all: hello.pyd
 
