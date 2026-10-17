@@ -29,9 +29,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
+RUN install -d -o wineuser -g wineuser "$WINEPREFIX"
+
+USER wineuser
+WORKDIR /home/wineuser
+
 # The null graphics driver stops Wine probing for X11 and Wayland on every start.
-RUN mkdir /wineprefix && \
-    wine64 wineboot --init && \
+RUN wine64 wineboot --init && \
     wine64 reg add 'HKCU\Software\Wine\Drivers' /v Graphics /d null /f && \
     wineserver -w
 
