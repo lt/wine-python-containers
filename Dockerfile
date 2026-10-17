@@ -128,9 +128,9 @@ ENTRYPOINT ["/usr/lib/wine/wine64", "/wineprefix/drive_c/python/python.exe"]
 
 # -----------------------------------------------------------------------------
 
-FROM runtime AS dev
+# Toolchain layers come before the prefix, so all Python versions share them.
+FROM base AS dev-tools
 
-USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \
     mingw-w64 \
     mingw-w64-tools \
@@ -142,6 +142,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ENV CC=x86_64-w64-mingw32-gcc
 ENV CXX=x86_64-w64-mingw32-g++
+
+# -----------------------------------------------------------------------------
+
+FROM dev-tools AS dev
+
+COPY --from=builder --chown=wineuser:wineuser /wineprefix /wineprefix
 
 ARG PYTHON_VERSION
 
@@ -158,3 +164,6 @@ RUN MAJOR=${PYTHON_VERSION%%.*} && \
     rm "${PYTHON_DLL%.dll}.def"
 
 USER wineuser
+WORKDIR /wineprefix
+
+ENTRYPOINT ["/usr/lib/wine/wine64", "/wineprefix/drive_c/python/python.exe"]
