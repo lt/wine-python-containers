@@ -1,3 +1,5 @@
+ARG PYTHON_VERSION=3.15.0
+
 FROM debian:bookworm-slim AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -50,7 +52,7 @@ RUN gpg --batch --keyserver hkps://keyserver.ubuntu.com --recv-keys \
     6AF053F07D9DC8D2 \
     FC624643487034E5
 
-ARG PYTHON_VERSION=3.15.0
+ARG PYTHON_VERSION
 
 RUN mkdir -p "$WINEPREFIX/drive_c/python" && \
     MAJOR=$(echo "$PYTHON_VERSION" | cut -d. -f1) && \
@@ -121,10 +123,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV CC=x86_64-w64-mingw32-gcc
 ENV CXX=x86_64-w64-mingw32-g++
 
-RUN PYTHON_DLL_PATH=$(find "$WINEPREFIX/drive_c/windows/system32" "$WINEPREFIX/drive_c/python" -name "python*.dll" | grep -vE "/python3\.dll$" | head -n 1) && \
-    PYTHON_DLL=$(basename "$PYTHON_DLL_PATH") && \
-    cd $(dirname "$PYTHON_DLL_PATH") && \
-    gendef "$PYTHON_DLL" && \
-    x86_64-w64-mingw32-dlltool -d "${PYTHON_DLL%.dll}.def" -l "/usr/x86_64-w64-mingw32/lib/libpython.a" -D "$PYTHON_DLL"
+ARG PYTHON_VERSION
+
+# Generate an import library so extensions can link with -lpython. The exact
+# DLL name matters: 3.15 also ships python3t.dll, a free-threaded ABI shim.
+RUN MAJOR=${PYTHON_VERSION%%.*} && \
+    MINOR=${PYTHON_VERSION#*.} && MINOR=${MINOR%%.*} && \
+    PYTHON_DLL="python$MAJOR$MINOR.dll" && \
+    PYTHON_DLL_PATH=$(find "$WINEPREFIX/drive_c" -name "$PYTHON_DLL" | head -n 1) && \
+    test -n "$PYTHON_DLL_PATH" && \
+    cd /tmp && \
+    gendef "$PYTHON_DLL_PATH" && \
+    x86_64-w64-mingw32-dlltool -d "${PYTHON_DLL%.dll}.def" -l /usr/x86_64-w64-mingw32/lib/libpython.a -D "$PYTHON_DLL" && \
+    rm "${PYTHON_DLL%.dll}.def"
 
 USER wineuser
