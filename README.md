@@ -55,3 +55,4 @@ make shell-3.15.0
 - WINEDEBUG set to `-all` to keep output clean.
 - WINEDLLOVERRIDES disables `mscoree` and `mshtml` to prevent hangs during the build.
 - Wine's graphics driver is set to `null`, as the images are headless.
+- `/usr/lib/wine` is on `PATH`, so `wine64` and `wineserver` work in a shell.

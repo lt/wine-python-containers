@@ -1,26 +1,38 @@
 ARG PYTHON_VERSION=3.15.0
 
-FROM debian:trixie-slim AS builder
+# Shared by every stage, so the builder and the images run the same Wine build.
+FROM debian:trixie-slim AS base
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PATH="/usr/lib/wine:$PATH"
 ENV WINEARCH=win64
 ENV WINEPREFIX=/wineprefix
 ENV WINEDEBUG=-all
+ENV PYTHONIOENCODING=utf-8
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wine64 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m wineuser
+
+# -----------------------------------------------------------------------------
+
+FROM base AS builder
+
 ENV WINEDLLOVERRIDES="mscoree,mshtml=d"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    wine \
-    wine64 \
-    wget \
     ca-certificates \
-    msitools \
     gnupg \
+    msitools \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 # The null graphics driver stops Wine probing for X11 and Wayland on every start.
 RUN mkdir /wineprefix && \
-    wine wineboot --init && \
-    wine reg add 'HKCU\Software\Wine\Drivers' /v Graphics /d null /f && \
+    wine64 wineboot --init && \
+    wine64 reg add 'HKCU\Software\Wine\Drivers' /v Graphics /d null /f && \
     wineserver -w
 
 # Replace physical files in system32 with symlinks to the internal Wine library.
@@ -73,19 +85,7 @@ RUN mkdir -p "$WINEPREFIX/drive_c/python" && \
 
 # -----------------------------------------------------------------------------
 
-FROM debian:trixie-slim AS runtime
-
-ENV DEBIAN_FRONTEND=noninteractive
-ENV WINEPREFIX=/wineprefix
-ENV WINEARCH=win64
-ENV WINEDEBUG=-all
-ENV PYTHONIOENCODING=utf-8
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    wine64 \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN useradd -m wineuser && mkdir -p /wineprefix && chown wineuser:wineuser /wineprefix
+FROM base AS runtime
 
 COPY --from=builder --chown=wineuser:wineuser /wineprefix /wineprefix
 
