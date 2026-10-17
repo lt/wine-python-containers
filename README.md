@@ -1,23 +1,25 @@
-# Wine + Python Containers
+# Wine + Python containers
 
-This repository provides minimal, reproducible environments for running various Windows Python versions on Linux using Wine 64-bit.
+This repository builds Docker images that run the Windows releases of Python on Linux under 64-bit Wine.
 
-Supported versions are listed in the `Makefile`, from 2.7.18 to 3.15.0. Each is the last release of its series with Windows binaries, or the latest one if the series is still maintained.
+The `Makefile` lists the supported versions, from 2.7.18 to 3.15.0. For each minor version it uses the newest release with Windows installers.
 
-## Building the Images
+## Building the images
 
-A `Makefile` is provided to simplify building runtime and development images across all supported versions.
+The `Makefile` builds two images for each version.
 
-### Runtime Images
-Minimal image for executing code:
+### Runtime image
+
+Runs Python:
 
 ```bash
 make image-3.15.0
 make all-image
 ```
 
-### Development Images
-Image with `mingw-w64` and Python headers for compiling extensions:
+### Dev image
+
+Adds the mingw-w64 compiler and the Python headers, for building C extensions:
 
 ```bash
 make dev-3.15.0
@@ -26,44 +28,47 @@ make all-dev
 
 ## Usage
 
-### Basic Verification
-Run a simple command to verify the Python version:
+### Check the Python version
 
 ```bash
 docker run --rm wine-python:3.15.0 -c "import sys; print(sys.version)"
 ```
 
-### Extension Development
-An example extension is provided in the `hello` directory.
+### Build an extension
 
-Compile and test the C extension inside the dev container:
+The `hello` directory holds an example C extension. Build and test it in the dev image, for one version or for all of them:
 
 ```bash
 make test-3.15.0
 make -j4 test-all
 ```
 
-### Interactive Shell
-Open a shell in the development environment:
+`-j4` runs four versions at a time.
+
+### Open a shell
 
 ```bash
 make shell-3.15.0
 ```
 
-## Verification
+## How Python is installed
 
-Every version installs from python.org's MSIs with `msiextract`. Releases before 3.5 ship a single MSI with every feature. The build removes the docs, Tcl/Tk, IDLE and the test suite, which later versions don't install. From 3.5 on, the build downloads the bundle installer and extracts the core, exe, lib and dev MSIs embedded in it.
+The build installs every version from python.org's MSI files, using `msiextract`.
 
-The installer is verified before extraction:
+- Before 3.5, each release has one MSI with every feature. The build deletes the docs, Tcl/Tk, IDLE and the test suite, so these versions match the later ones.
+- From 3.5, the build downloads the full installer (`python-<version>-amd64.exe`). It takes the core, exe, lib and dev MSIs from inside it.
 
-- 2.7 to 3.13: PGP signature, checked against the Windows release signing keys.
-- 3.14 and later: Sigstore bundle. PEP 761 dropped PGP signatures from 3.14 on.
+The build checks each installer's signature before using it:
 
-## Environment
+- 2.7 to 3.13: PGP, against the Windows release signing keys.
+- 3.14 onwards: Sigstore. Python stopped publishing PGP signatures in 3.14 (PEP 761).
 
-- WINEPREFIX set to `/wineprefix`.
-- WINEDEBUG set to `-all` to keep output clean.
-- WINEDLLOVERRIDES disables `mscoree` and `mshtml` to prevent hangs during the build.
-- Wine's graphics driver is set to `null`, as the images are headless.
+## Image settings
+
+- `WINEPREFIX` is `/wineprefix`.
+- `WINEDEBUG` is `-all`, which turns off Wine's debug messages.
+- Wine's graphics driver is `null`, as the images have no display.
 - `/usr/lib/wine` is on `PATH`, so `wine64` and `wineserver` work in a shell.
-- The standard library is precompiled to bytecode, so a fresh container doesn't recompile the modules it imports.
+- The standard library is compiled to bytecode during the build, so containers don't compile it on each run.
+
+During the build only, `WINEDLLOVERRIDES` turns off `mscoree` and `mshtml`. This stops Wine offering to install Mono and Gecko, which would hang the build.
