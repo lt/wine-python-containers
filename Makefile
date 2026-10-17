@@ -24,7 +24,7 @@ help:
 	@echo "  shell-%    Open an interactive shell in dev environment for version %"
 	@echo "  all-image  Build all runtime images"
 	@echo "  all-dev    Build all development images"
-	@echo "  test-all   Run tests across all supported versions"
+	@echo "  test-all   Run tests across all supported versions (parallel with -j)"
 	@echo "  clean      Remove docker images"
 
 # Build runtime image
@@ -39,20 +39,17 @@ dev-%:
 build-%: dev-%
 	docker run --rm --entrypoint /bin/bash -v $(CURDIR)/hello:/build -w /build $(DEV_IMAGE_NAME):$* -c "make clean hello.pyd"
 
-# Run tests
+# Run tests. Each version builds in its own copy of hello/, so parallel runs
+# don't overwrite each other's hello.pyd.
 test-%: dev-%
-	docker run --rm --entrypoint /bin/bash -v $(CURDIR)/hello:/build -w /build $(DEV_IMAGE_NAME):$* -c "make clean all test"
+	docker run --rm --entrypoint /bin/bash -v $(CURDIR)/hello:/src:ro $(DEV_IMAGE_NAME):$* -c "cp -r /src /tmp/build && cd /tmp/build && make clean all test"
 
 # Interactive shell
 shell-%: dev-%
 	docker run -it --rm --entrypoint /bin/bash -v $(CURDIR)/hello:/build -w /build $(DEV_IMAGE_NAME):$*
 
 # Comprehensive test
-test-all:
-	@for v in $(ALL_VERSIONS); do \
-		echo "Testing Python $$v..."; \
-		$(MAKE) test-$$v || exit 1; \
-	done
+test-all: $(addprefix test-,$(ALL_VERSIONS))
 
 clean:
 	docker rmi $$(docker images '$(IMAGE_NAME)' -q) 2>/dev/null || true

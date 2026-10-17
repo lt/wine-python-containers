@@ -40,6 +40,7 @@ Compile and test the C extension inside the dev container:
 
 ```bash
 make test-3.15.0
+make -j4 test-all
 ```
 
 ### Interactive Shell
