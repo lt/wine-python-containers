@@ -51,7 +51,7 @@ make shell-3.15.0
 
 ## Verification
 
-Every version installs from python.org's MSIs with `msiextract`. Releases before 3.5 ship a single MSI. From 3.5 on, the build downloads the bundle installer and extracts the core, exe, lib and dev MSIs embedded in it.
+Every version installs from python.org's MSIs with `msiextract`. Releases before 3.5 ship a single MSI with every feature. The build removes the docs, Tcl/Tk, IDLE and the test suite, which later versions don't install. From 3.5 on, the build downloads the bundle installer and extracts the core, exe, lib and dev MSIs embedded in it.
 
 The installer is verified before extraction:
 

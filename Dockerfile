@@ -101,6 +101,12 @@ RUN set -eu; \
     DEST="$WINEPREFIX/drive_c/python"; \
     mkdir -p "$DEST"; \
     for m in $MSIS; do msiextract -C "$DEST" "$m" > /dev/null; done; \
+    if [ "${INSTALLER##*.}" = msi ]; then \
+        # The single MSI installs every feature. Remove those that the core,
+        # exe, lib and dev MSIs leave out.
+        (cd "$DEST" && rm -rf Doc Tools tcl Lib/test Lib/idlelib Lib/lib-tk Lib/tkinter Lib/turtledemo \
+            DLLs/_tkinter.pyd DLLs/tcl*.dll DLLs/tk*.dll DLLs/_test*.pyd DLLs/_ctypes_test.pyd); \
+    fi; \
     rm -rf bundle "$INSTALLER" "$INSTALLER".*
 
 # -----------------------------------------------------------------------------
