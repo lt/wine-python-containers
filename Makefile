@@ -14,7 +14,7 @@ all-image: $(addprefix image-,$(ALL_VERSIONS))
 all-dev: $(addprefix dev-,$(ALL_VERSIONS))
 
 help:
-	@echo "Usage: make [target] VERSION=<version>"
+	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Targets:"
 	@echo "  image-%    Build runtime image for version % (e.g. make image-3.15.0)"
@@ -22,8 +22,8 @@ help:
 	@echo "  build-%    Compile the extension for version %"
 	@echo "  test-%     Run tests for version %"
 	@echo "  shell-%    Open an interactive shell in dev environment for version %"
-	@echo "  all-image Build all runtime images"
-	@echo "  all-dev   Build all development images"
+	@echo "  all-image  Build all runtime images"
+	@echo "  all-dev    Build all development images"
 	@echo "  test-all   Run tests across all supported versions"
 	@echo "  clean      Remove docker images"
 
